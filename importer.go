@@ -1,13 +1,13 @@
 package gofpdi
 
+import "io"
+
 // The Importer class to be used by a pdf generation library
 type Importer struct {
-	sourceFile string
-	readers    map[string]*PdfReader
-	writers    map[string]*PdfWriter
-	tplMap     map[int]*TplInfo
-	tplN       int
+	sourceFile io.ReadWriteSeeker
+	reader     *PdfReader
 	writer     *PdfWriter
+	tpl        *TplInfo
 }
 
 type TplInfo struct {
@@ -17,27 +17,11 @@ type TplInfo struct {
 }
 
 func (this *Importer) GetReader() *PdfReader {
-	return this.GetReaderForFile(this.sourceFile)
+	return this.reader
 }
 
 func (this *Importer) GetWriter() *PdfWriter {
-	return this.GetWriterForFile(this.sourceFile)
-}
-
-func (this *Importer) GetReaderForFile(file string) *PdfReader {
-	if _, ok := this.readers[file]; ok {
-		return this.readers[file]
-	}
-
-	return nil
-}
-
-func (this *Importer) GetWriterForFile(file string) *PdfWriter {
-	if _, ok := this.writers[file]; ok {
-		return this.writers[file]
-	}
-
-	return nil
+	return this.writer
 }
 
 func NewImporter() *Importer {
@@ -48,35 +32,18 @@ func NewImporter() *Importer {
 }
 
 func (this *Importer) init() {
-	this.readers = make(map[string]*PdfReader, 0)
-	this.writers = make(map[string]*PdfWriter, 0)
-	this.tplMap = make(map[int]*TplInfo, 0)
-	this.writer, _ = NewPdfWriter("")
+	this.writer, _ = NewPdfWriter(nil)
 }
 
-func (this *Importer) SetSourceFile(f string) {
+func (this *Importer) SetSourceFile(f io.ReadWriteSeeker) {
 	this.sourceFile = f
-
-	// If reader hasn't been instantiated, do that now
-	if _, ok := this.readers[this.sourceFile]; !ok {
-		reader, err := NewPdfReader(this.sourceFile)
-		if err != nil {
-			panic(err)
-		}
-		this.readers[this.sourceFile] = reader
+	reader, err := NewPdfReader(f)
+	if err != nil {
+		panic(err)
 	}
-
-	// If writer hasn't been instantiated, do that now
-	if _, ok := this.writers[this.sourceFile]; !ok {
-		writer, err := NewPdfWriter("")
-
-		// Make the next writer start template numbers at this.tplN
-		writer.SetTplIdOffset(this.tplN)
-		if err != nil {
-			panic(err)
-		}
-		this.writers[this.sourceFile] = writer
-	}
+	writer, err := NewPdfWriter(nil)
+	writer.SetTplIdOffset(0)
+	writer.r = reader
 }
 
 func (this *Importer) GetPageSizes() map[int]map[string]map[string]float64 {
@@ -95,16 +62,10 @@ func (this *Importer) ImportPage(pageno int, box string) int {
 		panic(err)
 	}
 
-	// Get current template id
-	tplN := this.tplN
-
 	// Set tpl info
-	this.tplMap[tplN] = &TplInfo{SourceFile: this.sourceFile, TemplateId: res, Writer: this.GetWriter()}
+	this.tpl = &TplInfo{TemplateId: res, Writer: this.GetWriter()}
 
-	// Increment template id
-	this.tplN++
-
-	return tplN
+	return 1
 }
 
 func (this *Importer) SetNextObjectID(objId int) {
@@ -175,6 +136,6 @@ func (this *Importer) GetImportedObjHashPos() map[string]map[int]string {
 // the 4 float64 values necessary to draw the template a x,y for a given width and height.
 func (this *Importer) UseTemplate(tplid int, _x float64, _y float64, _w float64, _h float64) (string, float64, float64, float64, float64) {
 	// Look up template id in importer tpl map
-	tplInfo := this.tplMap[tplid]
+	tplInfo := this.tpl
 	return tplInfo.Writer.UseTemplate(tplInfo.TemplateId, _x, _y, _w, _h)
 }

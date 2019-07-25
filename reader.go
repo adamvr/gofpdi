@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"math"
 	"os"
 	"strconv"
+
+	"github.com/pkg/errors"
 )
 
 type PdfReader struct {
@@ -20,21 +21,15 @@ type PdfReader struct {
 	pages          []*PdfValue
 	xrefPos        int
 	xref           map[int]map[int]int
-	f              *os.File
-	sourceFile     string
+	f              io.ReadSeeker
 }
 
-func NewPdfReader(filename string) (*PdfReader, error) {
+func NewPdfReader(file io.ReadSeeker) (*PdfReader, error) {
 	var err error
-	f, err := os.Open(filename)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to open file")
-	}
 
 	parser := &PdfReader{}
 	parser.init()
-	parser.f = f
-	parser.sourceFile = filename
+	parser.f = file
 	parser.xref = make(map[int]map[int]int, 0)
 	err = parser.read()
 	if err != nil {
@@ -190,8 +185,6 @@ func (this *PdfReader) readToken(r *bufio.Reader) (string, error) {
 		}
 		return str, nil
 	}
-
-	return "", nil
 }
 
 // Read a value based on a token
@@ -560,38 +553,12 @@ func (this *PdfReader) resolveObject(objSpec *PdfValue) (*PdfValue, error) {
 	} else {
 		return objSpec, nil
 	}
-
-	return &PdfValue{}, nil
 }
 
 // Find the xref offset (should be at the end of the PDF)
 func (this *PdfReader) findXref() error {
 	var result int
 	var err error
-	var toRead int64
-
-	toRead = 1500
-
-	// If PDF is smaller than 1500 bytes, be sure to only read the number of bytes that are in the file
-	info, err := this.f.Stat()
-	if err != nil {
-		return errors.Wrap(err, "Failed to obtain file information")
-	}
-	fileSize := info.Size()
-	if fileSize < toRead {
-		toRead = fileSize
-	}
-
-	// 0 means relative to the origin of the file,
-	// 1 means relative to the current offset,
-	// and 2 means relative to the end.
-	whence := 2
-
-	// Perform seek operation
-	_, err = this.f.Seek(-toRead, whence)
-	if err != nil {
-		return errors.Wrap(err, "Failed to set position of file")
-	}
 
 	// Create new bufio.Reader
 	r := bufio.NewReader(this.f)
@@ -622,7 +589,7 @@ func (this *PdfReader) findXref() error {
 	}
 
 	// Rewind file pointer
-	whence = 0
+	whence := 0
 	_, err = this.f.Seek(0, whence)
 	if err != nil {
 		return errors.Wrap(err, "Failed to set position of file")

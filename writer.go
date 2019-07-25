@@ -7,13 +7,14 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/pkg/errors"
+	"io"
 	"math"
-	"os"
+
+	"github.com/pkg/errors"
 )
 
 type PdfWriter struct {
-	f       *os.File
+	f       io.WriteSeeker
 	w       *bufio.Writer
 	r       *PdfReader
 	k       float64
@@ -66,19 +67,12 @@ func (this *PdfWriter) SetNextObjectID(id int) {
 	this.n = id - 1
 }
 
-func NewPdfWriter(filename string) (*PdfWriter, error) {
+func NewPdfWriter(f io.WriteSeeker) (*PdfWriter, error) {
 	writer := &PdfWriter{}
 	writer.Init()
+	writer.f = f
+	writer.w = bufio.NewWriter(f)
 
-	if filename != "" {
-		var err error
-		f, err := os.Create(filename)
-		if err != nil {
-			return nil, errors.Wrap(err, "Unable to create filename: "+filename)
-		}
-		writer.f = f
-		writer.w = bufio.NewWriter(f)
-	}
 	return writer, nil
 }
 
@@ -227,7 +221,7 @@ func (this *PdfWriter) endObj() {
 
 func (this *PdfWriter) shaOfInt(i int) string {
 	hasher := sha1.New()
-	hasher.Write([]byte(fmt.Sprintf("%s-%s", i, this.r.sourceFile)))
+	hasher.Write([]byte(fmt.Sprintf("%d-%s", i, "imported_file.pdf")))
 	sha := hex.EncodeToString(hasher.Sum(nil))
 	return sha
 }
