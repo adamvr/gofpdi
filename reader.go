@@ -558,7 +558,6 @@ func (this *PdfReader) resolveObject(objSpec *PdfValue) (*PdfValue, error) {
 // Find the xref offset (should be at the end of the PDF)
 func (this *PdfReader) findXref() error {
 	var result int
-	var err error
 
 	// Create new bufio.Reader
 	r := bufio.NewReader(this.f)
@@ -587,15 +586,6 @@ func (this *PdfReader) findXref() error {
 			break
 		}
 	}
-
-	// Rewind file pointer
-	whence := 0
-	_, err = this.f.Seek(0, whence)
-	if err != nil {
-		return errors.Wrap(err, "Failed to set position of file")
-	}
-
-	this.xrefPos = result
 
 	return nil
 }
