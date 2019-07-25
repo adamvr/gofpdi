@@ -4,10 +4,9 @@ import "io"
 
 // The Importer class to be used by a pdf generation library
 type Importer struct {
-	sourceFile io.ReadWriteSeeker
-	reader     *PdfReader
-	writer     *PdfWriter
-	tpl        *TplInfo
+	reader *PdfReader
+	writer *PdfWriter
+	tpl    *TplInfo
 }
 
 type TplInfo struct {
@@ -35,8 +34,7 @@ func (this *Importer) init() {
 	this.writer, _ = NewPdfWriter(nil)
 }
 
-func (this *Importer) SetSourceFile(f io.ReadWriteSeeker) {
-	this.sourceFile = f
+func (this *Importer) SetSourceFile(f io.ReadSeeker) {
 	reader, err := NewPdfReader(f)
 	if err != nil {
 		panic(err)
